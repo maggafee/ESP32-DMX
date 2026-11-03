@@ -348,7 +348,7 @@ function syncCtl(){if(!st)return;const f=st.fixtures[[...sel][0]];
  $('strobe').value=st.strobe;$('strobeo').textContent=st.strobe||'aus';
  renderFx();preview()}
 function renderTop(){if(!st)return;$('bo').className='b '+(st.blackout?'off-b':'');
- $('wdot').className='dot '+(st.wifi.sta?'ok':'bad');
+ $('wdot').className='dot '+(st.wifi.sta||(st.wifi.mode==0&&st.wifi.ap)?'ok':'bad');
  $('artb').style.display=st.art.en?'':'none';$('artb').className='badge '+(st.art.active?'hot':'');
  $('ovb').style.display=st.ovr?'':'none';$('ovb').textContent=st.ovr+' Kanäle manuell'}
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
