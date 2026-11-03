@@ -40,9 +40,8 @@ code,.mono{font-family:Menlo,Consolas,monospace;font-size:9.5pt;background:#f1f3
 
 <div class="box info">
 <div class="kv">
-<b>WLAN</b><span>gastro (Passwort gastroGH29)</span>
-<b>Adresse im Browser</b><span><span class="mono">http://dmx.local</span> oder die IP-Adresse des ESP32</span>
-<b>Notfall-WLAN</b><span><span class="mono">DMX-Steuerung</span>, Passwort <span class="mono">dmx12345</span>, Adresse <span class="mono">http://192.168.4.1</span></span>
+<b>ESP32-WLAN</b><span><span class="mono">DMX-Steuerung</span>, Passwort ab Werk <span class="mono">dmx12345</span> (bei der Einrichtung änderbar)</span>
+<b>Adresse im Browser</b><span><span class="mono">http://192.168.1.4</span> (Direktverbindung) oder <span class="mono">http://dmx.local</span> (im eigenen WLAN)</span>
 <b>Firmware-Datei</b><span><span class="mono">esp32-dmx-merged.bin</span> an Adresse <span class="mono">0x0</span></span>
 <b>DMX-Pins</b><span>GPIO17 = Daten, GPIO4 = Senden ein</span>
 </div>
@@ -181,18 +180,24 @@ code,.mono{font-family:Menlo,Consolas,monospace;font-size:9.5pt;background:#f1f3
 <p><b>Alternative per Kommandozeile:</b> <span class="mono">pip install esptool</span>, danach <span class="mono">esptool.py --chip esp32 write_flash 0x0 esp32-dmx-merged.bin</span></p>
 <p><b>Spätere Updates</b> gehen ohne Kabel: In der Oberfläche unter <b>System → Firmware-Update</b> die Datei <span class="mono">esp32-dmx-update.bin</span> hochladen. Wichtig ist hier die Update-Datei, nicht die „merged“-Datei.</p>
 
-<h2>4. Verbinden</h2>
-<div class="step"><div class="n">1</div><div>ESP32 einschalten. Er verbindet sich automatisch mit dem WLAN <b>gastro</b>. Wenn die blaue LED dauerhaft leuchtet, ist er verbunden.</div></div>
-<div class="step"><div class="n">2</div><div>Handy oder Laptop ebenfalls ins WLAN <b>gastro</b> einbuchen.</div></div>
-<div class="step"><div class="n">3</div><div>Im Browser <span class="mono">http://dmx.local</span> öffnen. Klappt das nicht (häufig bei Android), die IP-Adresse des ESP32 eingeben. Du findest sie im Router unter dem Namen „dmx“.</div></div>
-<div class="box tip"><b>Tipp:</b> Leg dir die Seite als Lesezeichen oder über „Zum Startbildschirm hinzufügen“ als App-Symbol auf das Handy.</div>
+<h2>4. Erster Start und Verbinden</h2>
+<p>Ab Werk ist kein WLAN eingetragen. Der ESP32 öffnet beim Einschalten sein <b>eigenes WLAN</b>. Du verbindest dich also direkt mit ihm, ein Router wird nicht gebraucht.</p>
+<div class="step"><div class="n">1</div><div>ESP32 einschalten. Nach etwa 5 Sekunden leuchtet die blaue LED dauerhaft.</div></div>
+<div class="step"><div class="n">2</div><div>Am Handy oder PC in den WLAN-Einstellungen das Netz <b>DMX-Steuerung</b> wählen und das Passwort <b>dmx12345</b> eingeben.</div></div>
+<div class="step"><div class="n">3</div><div>Meldet das Handy „Kein Internet“, tippe auf <b>Verbunden bleiben</b>. Schalte notfalls die mobilen Daten kurz aus, damit das Handy nicht ins Mobilnetz wechselt.</div></div>
+<div class="step"><div class="n">4</div><div>Im Browser <span class="mono">http://192.168.1.4</span> öffnen. Oft öffnet sich die Seite auch von selbst.</div></div>
+<div class="step"><div class="n">5</div><div>Der <b>Einrichtungsassistent</b> erscheint. Wähle dort:
+<ul><li><b>Direktverbindung:</b> Der ESP32 bleibt sein eigenes WLAN. Vergib einen Namen und ein eigenes Passwort (mindestens 8 Zeichen).</li>
+<li><b>Mit vorhandenem WLAN verbinden:</b> Tippe auf „WLAN-Netze suchen“, wähle dein Netz und gib das Passwort ein. Es gehen nur 2,4-GHz-Netze.</li></ul></div></div>
+<div class="step"><div class="n">6</div><div>Auf <b>Speichern &amp; starten</b> tippen. Der ESP32 startet neu, auf der Seite steht dann, wie du ihn wieder erreichst.</div></div>
+<div class="box tip"><b>Tipp:</b> Den Assistenten kannst du jederzeit unter <b>System → Einrichtungsassistent öffnen</b> erneut starten. Leg dir die Seite als Lesezeichen oder über „Zum Startbildschirm hinzufügen“ als App-Symbol auf das Handy.</div>
 <table>
 <tr><th>LED</th><th>Bedeutung</th></tr>
-<tr><td>leuchtet dauerhaft</td><td>Mit dem WLAN gastro verbunden</td></tr>
-<tr><td>blinkt schnell</td><td>Verbindet gerade</td></tr>
-<tr><td>blinkt langsam (1×/s)</td><td>WLAN nicht gefunden, der Notfall-Access-Point ist aktiv</td></tr>
+<tr><td>leuchtet dauerhaft</td><td>Bereit: Direktverbindung aktiv oder mit dem WLAN verbunden</td></tr>
+<tr><td>blinkt schnell</td><td>Verbindet sich gerade mit dem WLAN</td></tr>
+<tr><td>blinkt langsam (1×/s)</td><td>WLAN nicht erreichbar. Die Direktverbindung ist als Notfall geöffnet (192.168.1.4).</td></tr>
 </table>
-<p><b>Notfall-Access-Point:</b> Findet der ESP32 das WLAN 20 Sekunden lang nicht, öffnet er ein eigenes WLAN namens <b>DMX-Steuerung</b> (Passwort <b>dmx12345</b>). Nach dem Verbinden öffnet sich die Oberfläche meist von allein, sonst <span class="mono">http://192.168.4.1</span> aufrufen. Dort kannst du unter <b>System</b> ein anderes WLAN eintragen.</p>
+<p><b>Im eigenen WLAN</b> erreichst du den ESP32 unter <span class="mono">http://dmx.local</span>. Auf Android klappt das oft nicht, dann gib die IP-Adresse ein, die der Router unter dem Namen „dmx“ anzeigt. Findet der ESP32 das WLAN 20 Sekunden lang nicht, öffnet er automatisch wieder seine Direktverbindung unter <span class="mono">192.168.1.4</span>. Unter <b>System</b> steht dann der Grund, zum Beispiel „Passwort falsch“ oder „WLAN nicht gefunden“.</p>
 
 <h2>5. Scheinwerfer einrichten</h2>
 <p>Jeder Scheinwerfer hört auf eine <b>Startadresse</b> und belegt ab dort so viele Kanäle, wie sein <b>Modus</b> hat. Die Adresse und den Modus stellst du direkt am Scheinwerfer ein (Display oder DIP-Schalter), und in der Oberfläche unter <b>Geräte</b> trägst du dieselben Werte ein.</p>
@@ -262,7 +267,7 @@ code,.mono{font-family:Menlo,Consolas,monospace;font-size:9.5pt;background:#f1f3
 <tr><td><b>Szenen</b></td><td>Es gibt 12 Speicherplätze. Ein leeres Feld antippen speichert die aktuelle Stimmung, ein volles Feld antippen ruft sie ab. Lange drücken überschreibt oder löscht.</td></tr>
 <tr><td><b>Geräte</b></td><td>Scheinwerfer, Adressen und Kanäle festlegen (siehe Abschnitt 5).</td></tr>
 <tr><td><b>Kanäle</b></td><td>Einzelne DMX-Kanäle direkt setzen, um sie zu testen, und ein Live-Monitor aller 512 Kanäle.</td></tr>
-<tr><td><b>System</b></td><td>WLAN (auch mit fester IP), Pins, Art-Net-Empfang, Verhalten beim Einschalten (aus, letzter Zustand oder eine Szene), Backup, Firmware-Update, Neustart und Werkseinstellungen.</td></tr>
+<tr><td><b>System</b></td><td>Verbindungsart (Direkt oder WLAN), Einrichtungsassistent, WLAN-Suche, feste IP, Pins, Art-Net-Empfang, Verhalten beim Einschalten (aus, letzter Zustand oder eine Szene), Backup, Firmware-Update, Neustart und Werkseinstellungen.</td></tr>
 </table>
 <div class="box info"><b>Art-Net:</b> Wenn du später ein Lichtpult-Programm wie QLC+ am Laptop nutzen willst, schalte unter System den <b>Art-Net-Empfang</b> ein und wähle das Universum (meist 0). Solange Art-Net-Daten ankommen, haben sie Vorrang, und oben leuchtet das Art-Net-Symbol.</div>
 
@@ -273,8 +278,8 @@ code,.mono{font-family:Menlo,Consolas,monospace;font-size:9.5pt;background:#f1f3
 <tr><td>Flackert oder reagiert wirr</td><td><b>A und B vertauscht?</b> Dann die beiden Leitungen an der XLR-Buchse tauschen (Pin 2 ↔ 3). Außerdem prüfen, ob GND verbunden ist und am letzten Gerät ein Abschluss steckt.</td></tr>
 <tr><td>Falsche Farben</td><td>Die Kanalreihenfolge im Profil passt nicht. Unter <b>Geräte</b> die Kanäle wie in der Anleitung des Scheinwerfers belegen.</td></tr>
 <tr><td>Licht bleibt dunkel, obwohl Farbe gesetzt ist</td><td>Der Dimmer- oder Strobe-Kanal ist falsch. Manche Geräte brauchen am Strobe-Kanal einen Ruhewert von 255.</td></tr>
-<tr><td>Oberfläche nicht erreichbar</td><td>Ist das Handy im gleichen WLAN? Statt <span class="mono">dmx.local</span> die IP-Adresse probieren. Blinkt die LED langsam, mit dem WLAN <b>DMX-Steuerung</b> verbinden.</td></tr>
-<tr><td>Alles zurücksetzen</td><td>Unter <b>System → Werkseinstellungen</b>. Alternativ neu flashen, vorher mit <span class="mono">esptool.py erase_flash</span> löschen.</td></tr>
+<tr><td>Oberfläche nicht erreichbar</td><td>Bist du mit dem richtigen WLAN verbunden? Im Direktmodus <span class="mono">http://192.168.1.4</span> öffnen (mit http, nicht https). Mobile Daten am Handy kurz ausschalten. Im eigenen WLAN statt <span class="mono">dmx.local</span> die IP-Adresse probieren. Blinkt die LED langsam, mit dem ESP32-WLAN verbinden.</td></tr>
+<tr><td>Passwort vergessen / alles zurücksetzen</td><td>Unter <b>System → Werkseinstellungen</b>. Alternativ neu flashen, vorher mit <span class="mono">esptool.py erase_flash</span> löschen.</td></tr>
 </table>
 <p style="color:#5b6478;font-size:9pt;margin-top:16px">Quellcode und neueste Firmware: github.com/maggafee/ESP32-DMX</p>
 </body>
