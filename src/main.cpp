@@ -15,7 +15,7 @@
 #include "driver/uart.h"
 #include "webui.h"
 
-#define FW_VERSION "1.0.0"
+#define FW_VERSION "1.0.1"
 #define MAX_FIX 24
 #define MAX_CH 16
 #define MAX_SCENES 12
@@ -375,30 +375,62 @@ void pollArtNet() {
 }
 
 // ---------------------------------------------------------------- WLAN
+void sendJson(JsonDocument &d, int code);
+volatile uint8_t staReason = 0;     // letzter Trennungsgrund (ESP-IDF wifi_err_reason_t)
+uint32_t lastRetry = 0;
+
+const char *reasonText(uint8_t r) {
+  switch (r) {
+    case 0: return "";
+    case 201: return "WLAN nicht gefunden (Name falsch, zu weit weg oder nur 5 GHz)";
+    case 202: case 15: case 204: case 2: return "Anmeldung abgelehnt (Passwort falsch?)";
+    case 203: return "Verbindung vom Router abgelehnt (z.B. MAC-Filter oder Router voll)";
+    case 200: return "Kein Signal mehr (Beacon-Timeout)";
+    case 205: return "Verbindung fehlgeschlagen";
+    default: { static char b[24]; snprintf(b, sizeof(b), "Fehlercode %u", r); return b; }
+  }
+}
+
 void startAP() {
   if (apActive) return;
   WiFi.mode(WIFI_AP_STA);
-  WiFi.softAP(cfg.apSsid, strlen(cfg.apPass) >= 8 ? cfg.apPass : nullptr);
+  WiFi.softAP(cfg.apSsid, strlen(cfg.apPass) >= 8 ? cfg.apPass : nullptr, 1);
+  delay(100);
   dns.start(53, "*", WiFi.softAPIP());
   apActive = true;
+  // Ständiges Neuverbinden lässt den Access Point unbrauchbar werden -> nur noch gezielt erneut versuchen
+  WiFi.setAutoReconnect(false);
+  WiFi.disconnect(false, false);
+  lastRetry = millis();
 }
 void stopAP() {
   if (!apActive) return;
   dns.stop();
   WiFi.softAPdisconnect(true);
   WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
   apActive = false;
+}
+
+void staBegin() {
+  if (!strlen(cfg.ssid)) return;
+  if (cfg.useStatic) WiFi.config(IPAddress(cfg.ip), IPAddress(cfg.gw), IPAddress(cfg.mask), IPAddress(cfg.dns));
+  WiFi.begin(cfg.ssid, cfg.pass);
 }
 
 void startWiFi() {
   WiFi.persistent(false);
+  WiFi.setHostname(cfg.host);           // muss vor WiFi.mode() stehen
   WiFi.mode(WIFI_STA);
-  WiFi.setHostname(cfg.host);
   WiFi.setSleep(false);
-  if (cfg.useStatic) WiFi.config(IPAddress(cfg.ip), IPAddress(cfg.gw), IPAddress(cfg.mask), IPAddress(cfg.dns));
-  if (strlen(cfg.ssid)) WiFi.begin(cfg.ssid, cfg.pass);
+  WiFi.setMinSecurity(WIFI_AUTH_WEP);   // auch ältere Router (WPA/TKIP) zulassen
+  WiFi.onEvent([](WiFiEvent_t e, WiFiEventInfo_t info) {
+    staReason = info.wifi_sta_disconnected.reason;
+    Serial.printf("WLAN getrennt: %u %s\n", staReason, reasonText(staReason));
+  }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+  WiFi.onEvent([](WiFiEvent_t e, WiFiEventInfo_t info) { staReason = 0; }, ARDUINO_EVENT_WIFI_STA_GOT_IP);
+  if (strlen(cfg.ssid)) { WiFi.setAutoReconnect(true); staBegin(); }
   else startAP();
-  WiFi.setAutoReconnect(true);
   staLostSince = millis();
 }
 
@@ -416,13 +448,35 @@ void handleWiFi() {
       startAP();
       Serial.printf("WLAN nicht erreichbar -> Access Point '%s' (IP %s)\n", cfg.apSsid, WiFi.softAPIP().toString().c_str());
     }
-    static uint32_t lastRetry = 0;
-    if (strlen(cfg.ssid) && now - lastRetry > 30000) { lastRetry = now; WiFi.disconnect(); WiFi.begin(cfg.ssid, cfg.pass); }
+    // Im AP-Betrieb nur erneut versuchen, wenn gerade niemand am Access Point hängt (alle 60 s, max. 15 s lang)
+    if (apActive && strlen(cfg.ssid)) {
+      static bool trying = false;
+      if (trying && now - lastRetry > 15000) { trying = false; WiFi.disconnect(false, false); lastRetry = now; }
+      else if (!trying && now - lastRetry > 60000 && WiFi.softAPgetStationNum() == 0) { trying = true; lastRetry = now; staBegin(); }
+    }
   }
 }
 
+void handleScan() {
+  int n = WiFi.scanComplete();
+  if (n == WIFI_SCAN_FAILED || server.hasArg("start")) {
+    WiFi.scanNetworks(true, false, false, 120);
+    server.send(200, "application/json", "{\"running\":true}");
+    return;
+  }
+  if (n == WIFI_SCAN_RUNNING) { server.send(200, "application/json", "{\"running\":true}"); return; }
+  JsonDocument d;
+  JsonArray a = d["nets"].to<JsonArray>();
+  for (int i = 0; i < n; i++) {
+    JsonObject o = a.add<JsonObject>();
+    o["ssid"] = WiFi.SSID(i); o["rssi"] = WiFi.RSSI(i); o["ch"] = WiFi.channel(i); o["enc"] = (int)WiFi.encryptionType(i);
+  }
+  WiFi.scanDelete();
+  sendJson(d, 200);
+}
+
 // ---------------------------------------------------------------- Web-API
-void sendJson(JsonDocument &d, int code = 200) {
+void sendJson(JsonDocument &d, int code) {
   String s; serializeJson(d, s);
   server.sendHeader("Cache-Control", "no-store");
   server.send(code, "application/json", s);
@@ -460,9 +514,9 @@ void handleState() {
   xSemaphoreGive(lock);
   JsonObject w = d["wifi"].to<JsonObject>();
   w["sta"] = WiFi.status() == WL_CONNECTED; w["ssid"] = cfg.ssid; w["ip"] = WiFi.localIP().toString(); w["rssi"] = WiFi.RSSI();
-  w["ap"] = apActive; w["apip"] = WiFi.softAPIP().toString(); w["host"] = cfg.host;
+  w["reason"] = reasonText(staReason); w["ap"] = apActive; w["apip"] = WiFi.softAPIP().toString(); w["host"] = cfg.host;
   d["up"] = millis() / 1000; d["heap"] = ESP.getFreeHeap();
-  sendJson(d);
+  sendJson(d, 200);
 }
 
 void handleControl() {
@@ -509,7 +563,7 @@ void handleGetConfig() {
   JsonArray fa = d["fixtures"].to<JsonArray>();
   for (int i = 0; i < cfg.nfix; i++) fixToJson(fa.add<JsonObject>(), cfg.fix[i]);
   d["maxFix"] = MAX_FIX; d["maxCh"] = MAX_CH;
-  sendJson(d);
+  sendJson(d, 200);
 }
 
 void handlePostConfig() {
@@ -564,7 +618,7 @@ void handlePostConfig() {
   saveConfig();
   xSemaphoreGive(lock);
   JsonDocument r; r["ok"] = true; r["reboot"] = reboot;
-  sendJson(r);
+  sendJson(r, 200);
 }
 
 void handleScenes() {
@@ -576,7 +630,7 @@ void handleScenes() {
     if (loadSceneSlot(sceneKey(s).c_str(), sc)) { o["used"] = true; o["name"] = sc.name; }
     else o["used"] = false;
   }
-  sendJson(d);
+  sendJson(d, 200);
 }
 
 bool applyScene(int slot) {
@@ -663,6 +717,7 @@ void setupServer() {
   server.on("/api/scenes", HTTP_POST, handleScenePost);
   server.on("/api/dmx", HTTP_GET, handleDmx);
   server.on("/api/chan", HTTP_POST, handleChan);
+  server.on("/api/scan", HTTP_GET, handleScan);
   server.on("/api/reboot", HTTP_POST, []() { sendOk(); rebootPending = true; rebootAt = millis() + 500; });
   server.on("/api/factory", HTTP_POST, []() {
     prefs.begin("dmx", false); prefs.clear(); prefs.end();

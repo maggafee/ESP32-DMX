@@ -157,6 +157,8 @@ input[type=text],input[type=number],input[type=password],select{background:#1113
  <div class="card f">
   <h2>WLAN</h2>
   <div class="mut" id="winfo"></div>
+  <div class="row" style="margin-top:8px"><button class="b" id="scan">WLAN-Netze suchen</button></div>
+  <div id="scanl" class="chips row" style="margin-top:6px"></div>
   <label>SSID</label><input type="text" id="w_ssid">
   <label>Passwort</label><input type="password" id="w_pass">
   <label>Gerätename (mDNS: name.local)</label><input type="text" id="w_host">
@@ -321,7 +323,7 @@ async function poll(){try{const s=await api('/api/state');const first=!st;
  st=s;if(first)sel=new Set(st.fixtures.map((_,i)=>i));sel=new Set([...sel].filter(i=>i<st.fixtures.length));
  renderSel();syncCtl();renderTop();
  $('sysinfo').innerHTML=`Firmware ${s.fw} · Laufzeit ${Math.floor(s.up/3600)}h ${Math.floor(s.up/60)%60}min · freier Speicher ${(s.heap/1024).toFixed(0)} kB`;
- $('winfo').innerHTML=(s.wifi.sta?`Verbunden mit <b>${esc(s.wifi.ssid)}</b>, IP <b>${s.wifi.ip}</b> (${s.wifi.rssi} dBm), auch erreichbar als <b>http://${esc(s.wifi.host)}.local</b>`:'Nicht mit dem WLAN verbunden.')+(s.wifi.ap?` · Access Point aktiv (IP ${s.wifi.apip})`:'');
+ $('winfo').innerHTML=(s.wifi.sta?`Verbunden mit <b>${esc(s.wifi.ssid)}</b>, IP <b>${s.wifi.ip}</b> (${s.wifi.rssi} dBm), auch erreichbar als <b>http://${esc(s.wifi.host)}.local</b>`:'Nicht mit dem WLAN <b>'+esc(s.wifi.ssid)+'</b> verbunden.'+(s.wifi.reason?' Grund: <b>'+esc(s.wifi.reason)+'</b>':''))+(s.wifi.ap?` · Access Point aktiv (IP ${s.wifi.apip})`:'');
 }catch(e){$('wdot').className='dot bad'}}
 setInterval(poll,2000);poll();
 
@@ -396,6 +398,10 @@ $('reboot').onclick=()=>confirm('Neu starten?')&&api('/api/reboot',{}).then(()=>
 $('factory').onclick=()=>confirm('Alle Einstellungen und Szenen löschen?')&&api('/api/factory',{}).then(()=>toast('Zurückgesetzt, Neustart …'));
 $('export').onclick=async()=>{const c=await api('/api/config');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(c,null,1)],{type:'application/json'}));a.download='dmx-backup.json';a.click()};
 $('import').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const c=JSON.parse(await f.text());await api('/api/config',{fixtures:c.fixtures,dmx:c.dmx});toast('Backup eingespielt');loadCfg()}catch(x){toast('Datei ungültig')}};
+$('scan').onclick=async()=>{$('scanl').innerHTML='<span class="mut">Suche … (Verbindung kann kurz stocken)</span>';await api('/api/scan?start=1');
+ for(let i=0;i<20;i++){await new Promise(r=>setTimeout(r,1000));let r;try{r=await api('/api/scan')}catch(e){continue}if(r.running)continue;
+  const n=r.nets.sort((a,b)=>b.rssi-a.rssi);$('scanl').innerHTML=n.length?n.map(x=>`<button class="b" data-s="${esc(x.ssid)}">${esc(x.ssid||'(versteckt)')} · ${x.rssi} dBm · Kanal ${x.ch}</button>`).join(''):'<span class="mut">Keine Netze gefunden</span>';return}};
+$('scanl').onclick=e=>{const b=e.target.closest('button');if(b){$('w_ssid').value=b.dataset.s;toast('SSID übernommen – Passwort prüfen und speichern')}};
 $('doupd').onclick=async()=>{const f=$('fw').files[0];if(!f)return toast('Bitte .bin wählen');const fd=new FormData();fd.append('fw',f);toast('Lade hoch …');
  const r=await fetch('/update',{method:'POST',body:fd});toast(await r.text())};
 </script>
