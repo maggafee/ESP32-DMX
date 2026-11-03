@@ -15,12 +15,13 @@
 #include "driver/uart.h"
 #include "webui.h"
 
-#define FW_VERSION "1.0.1"
+#define FW_VERSION "1.1.0"
 #define MAX_FIX 24
 #define MAX_CH 16
 #define MAX_SCENES 12
 #define DMX_PORT UART_NUM_2
-#define CFG_MAGIC 0xD3A51001u
+#define CFG_MAGIC 0xD3A51002u
+#define AP_IP IPAddress(192, 168, 1, 4)
 #define SCN_MAGIC 0x5CE0E001u
 
 // ---------------------------------------------------------------- Typen
@@ -45,6 +46,8 @@ struct Config {
   uint8_t rate;          // DMX-Bildrate (Hz)
   uint8_t artEnable;
   uint16_t artUniverse;
+  uint8_t wifiMode;      // 0 = Direktverbindung (eigenes WLAN), 1 = Haus-WLAN (Direkt nur als Notfall)
+  uint8_t setupDone;     // 0 = Einrichtungsassistent anzeigen
   uint8_t bootMode;      // 0 = aus, 1 = letzter Zustand, 2 = Szene
   int8_t bootScene;
   uint8_t nfix;
@@ -109,8 +112,7 @@ static void setProfile(FixDef &f, const char *name, uint16_t addr, std::initiali
 void defaultConfig() {
   memset(&cfg, 0, sizeof(cfg));
   cfg.magic = CFG_MAGIC;
-  copyStr(cfg.ssid, "gastro", sizeof(cfg.ssid));
-  copyStr(cfg.pass, "gastroGH29", sizeof(cfg.pass));
+  cfg.wifiMode = 0; cfg.setupDone = 0;   // keine WLAN-Daten voreingestellt
   copyStr(cfg.apSsid, "DMX-Steuerung", sizeof(cfg.apSsid));
   copyStr(cfg.apPass, "dmx12345", sizeof(cfg.apPass));
   copyStr(cfg.host, "dmx", sizeof(cfg.host));
@@ -393,14 +395,14 @@ const char *reasonText(uint8_t r) {
 
 void startAP() {
   if (apActive) return;
-  WiFi.mode(WIFI_AP_STA);
+  WiFi.mode(cfg.wifiMode == 0 ? WIFI_AP : WIFI_AP_STA);
+  WiFi.softAPConfig(AP_IP, AP_IP, IPAddress(255, 255, 255, 0));
   WiFi.softAP(cfg.apSsid, strlen(cfg.apPass) >= 8 ? cfg.apPass : nullptr, 1);
   delay(100);
   dns.start(53, "*", WiFi.softAPIP());
   apActive = true;
   // Ständiges Neuverbinden lässt den Access Point unbrauchbar werden -> nur noch gezielt erneut versuchen
-  WiFi.setAutoReconnect(false);
-  WiFi.disconnect(false, false);
+  if (cfg.wifiMode != 0) { WiFi.setAutoReconnect(false); WiFi.disconnect(false, false); }
   lastRetry = millis();
 }
 void stopAP() {
@@ -429,13 +431,14 @@ void startWiFi() {
     Serial.printf("WLAN getrennt: %u %s\n", staReason, reasonText(staReason));
   }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
   WiFi.onEvent([](WiFiEvent_t e, WiFiEventInfo_t info) { staReason = 0; }, ARDUINO_EVENT_WIFI_STA_GOT_IP);
-  if (strlen(cfg.ssid)) { WiFi.setAutoReconnect(true); staBegin(); }
-  else startAP();
+  if (cfg.wifiMode == 1 && strlen(cfg.ssid)) { WiFi.setAutoReconnect(true); staBegin(); }
+  else startAP();   // Direktverbindung: ESP32 öffnet sein eigenes WLAN
   staLostSince = millis();
 }
 
 void handleWiFi() {
   uint32_t now = millis();
+  if (cfg.wifiMode == 0 || !strlen(cfg.ssid)) { if (!apActive) startAP(); return; }
   if (WiFi.status() == WL_CONNECTED) {
     staLostSince = 0;
     if (!staOkSince) { staOkSince = now; Serial.printf("WLAN verbunden: %s  IP %s\n", cfg.ssid, WiFi.localIP().toString().c_str()); }
@@ -460,6 +463,7 @@ void handleWiFi() {
 void handleScan() {
   int n = WiFi.scanComplete();
   if (n == WIFI_SCAN_FAILED || server.hasArg("start")) {
+    if (WiFi.getMode() == WIFI_AP) WiFi.mode(WIFI_AP_STA);
     WiFi.scanNetworks(true, false, false, 120);
     server.send(200, "application/json", "{\"running\":true}");
     return;
@@ -515,6 +519,7 @@ void handleState() {
   JsonObject w = d["wifi"].to<JsonObject>();
   w["sta"] = WiFi.status() == WL_CONNECTED; w["ssid"] = cfg.ssid; w["ip"] = WiFi.localIP().toString(); w["rssi"] = WiFi.RSSI();
   w["reason"] = reasonText(staReason); w["ap"] = apActive; w["apip"] = WiFi.softAPIP().toString(); w["host"] = cfg.host;
+  w["mode"] = cfg.wifiMode; w["apSsid"] = cfg.apSsid; d["setup"] = !cfg.setupDone;
   d["up"] = millis() / 1000; d["heap"] = ESP.getFreeHeap();
   sendJson(d, 200);
 }
@@ -556,7 +561,7 @@ void handleGetConfig() {
   JsonDocument d;
   JsonObject w = d["wifi"].to<JsonObject>();
   w["ssid"] = cfg.ssid; w["pass"] = cfg.pass; w["apSsid"] = cfg.apSsid; w["apPass"] = cfg.apPass; w["host"] = cfg.host;
-  w["static"] = cfg.useStatic; w["ip"] = ipStr(cfg.ip); w["gw"] = ipStr(cfg.gw); w["mask"] = ipStr(cfg.mask); w["dns"] = ipStr(cfg.dns);
+  w["mode"] = cfg.wifiMode; w["static"] = cfg.useStatic; w["ip"] = ipStr(cfg.ip); w["gw"] = ipStr(cfg.gw); w["mask"] = ipStr(cfg.mask); w["dns"] = ipStr(cfg.dns);
   JsonObject x = d["dmx"].to<JsonObject>();
   x["tx"] = cfg.txPin; x["de"] = cfg.dePin; x["led"] = cfg.ledPin; x["rate"] = cfg.rate;
   x["art"] = cfg.artEnable; x["uni"] = cfg.artUniverse; x["boot"] = cfg.bootMode; x["bootScene"] = cfg.bootScene;
@@ -575,8 +580,10 @@ void handlePostConfig() {
     if (w["ssid"].is<const char *>()) copyStr(cfg.ssid, w["ssid"].as<const char *>(), sizeof(cfg.ssid));
     if (w["pass"].is<const char *>()) copyStr(cfg.pass, w["pass"].as<const char *>(), sizeof(cfg.pass));
     if (w["apSsid"].is<const char *>()) copyStr(cfg.apSsid, w["apSsid"].as<const char *>(), sizeof(cfg.apSsid));
-    if (w["apPass"].is<const char *>()) copyStr(cfg.apPass, w["apPass"].as<const char *>(), sizeof(cfg.apPass));
+    if (w["apPass"].is<const char *>() && strlen(w["apPass"].as<const char *>()) >= 8) copyStr(cfg.apPass, w["apPass"].as<const char *>(), sizeof(cfg.apPass));
     if (w["host"].is<const char *>()) copyStr(cfg.host, w["host"].as<const char *>(), sizeof(cfg.host));
+    if (!w["mode"].isNull()) cfg.wifiMode = w["mode"].as<int>() ? 1 : 0;
+    cfg.setupDone = 1;
     if (!w["static"].isNull()) cfg.useStatic = w["static"].as<int>() ? 1 : 0;
     parseIp(w["ip"].as<const char *>(), cfg.ip); parseIp(w["gw"].as<const char *>(), cfg.gw); parseIp(w["mask"].as<const char *>(), cfg.mask); parseIp(w["dns"].as<const char *>(), cfg.dns);
     reboot = true;
@@ -738,6 +745,7 @@ void handleLed() {
   uint32_t now = millis();
   bool on;
   if (WiFi.status() == WL_CONNECTED) on = true;                 // dauerhaft an: verbunden
+  else if (apActive && cfg.wifiMode == 0) on = true;          // dauerhaft an: Direktverbindung bereit
   else if (apActive) on = (now / 1000) & 1;                     // langsam blinken: Access Point
   else on = (now / 150) & 1;                                    // schnell blinken: verbindet
   digitalWrite(cfg.ledPin, on);
