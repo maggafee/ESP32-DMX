@@ -1,5 +1,7 @@
 name: Firmware bauen
 on: [push, workflow_dispatch]
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -13,11 +15,18 @@ jobs:
         run: |
           B=.pio/build/esp32dev
           mkdir -p out
-          esptool.py --chip esp32 merge_bin -o out/esp32-dmx-merged.bin \
-            --flash_mode dio --flash_freq 40m --flash_size 4MB \
+          esptool --chip esp32 merge-bin -o out/esp32-dmx-merged.bin \
+            --flash-mode dio --flash-freq 40m --flash-size 4MB \
             0x1000 $B/bootloader.bin 0x8000 $B/partitions.bin \
             0xe000 ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin \
             0x10000 $B/firmware.bin
           cp $B/firmware.bin out/esp32-dmx-update.bin
       - uses: actions/upload-artifact@v4
         with: { name: esp32-dmx-firmware, path: out/ }
+      - name: Release "latest" aktualisieren
+        if: github.ref == 'refs/heads/main'
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest out/*.bin --title "Aktuelle Firmware" \
+            --notes "esp32-dmx-merged.bin an Adresse 0x0 flashen. esp32-dmx-update.bin ist fuer das Update ueber die Weboberflaeche."

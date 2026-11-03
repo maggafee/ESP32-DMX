@@ -247,7 +247,8 @@ void renderFrame(uint8_t *out) {
           v[6] *= 0.5f - 0.5f * cosf(t * rate * 6.2832f); break;
         case 3: { // Lauflicht
           int pos = ((int)(t * stepRate)) % (nsel ? nsel : 1);
-          if (pos != ei) v[6] = 0; break; }
+          if (pos != ei) v[6] = 0;
+          break; }
         case 4: { // Farbwechsel (weich)
           static const uint8_t pal[7][3] = {{255,0,0},{255,128,0},{255,255,0},{0,255,0},{0,255,255},{0,0,255},{255,0,255}};
           float ph = t * rate * 2; int a = ((int)ph) % 7, bb = (a + 1) % 7; float fr = ph - floorf(ph);
@@ -267,7 +268,8 @@ void renderFrame(uint8_t *out) {
           bool phase = ((beat / 4) + ei) & 1;
           bool flash = (beat & 1) == 0;
           v[0] = phase ? 255 : 0; v[1] = 0; v[2] = phase ? 0 : 255; v[3] = v[4] = v[5] = 0;
-          if (!flash) v[6] = 0; break; }
+          if (!flash) v[6] = 0;
+          break; }
       }
     }
     // Identifizieren: weiß blinken
@@ -550,7 +552,8 @@ void handlePostConfig() {
       f.addr = o["a"] | 1;
       f.flags = (o["aw"] | false) ? 1 : 0;
       int c = 0;
-      for (JsonArray x : o["ch"].as<JsonArray>()) { if (c >= MAX_CH) break; f.ch[c].fn = x[0] | 0; f.ch[c].val = x[1] | 0; c++; }
+      JsonArray chs = o["ch"].as<JsonArray>();
+      for (JsonArray x : chs) { if (c >= MAX_CH) break; f.ch[c].fn = x[0] | 0; f.ch[c].val = x[1] | 0; c++; }
       f.nch = c;
       n++;
     }
