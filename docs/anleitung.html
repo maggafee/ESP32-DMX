@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>ESP32 DMX-Steuerung – Anleitung</title>
+<style>
+@page{size:A4;margin:16mm 15mm 16mm 15mm}
+*{box-sizing:border-box}
+body{font:10.5pt/1.5 "Helvetica Neue",Arial,sans-serif;color:#1d2330;margin:0}
+h1{font-size:24pt;margin:0 0 4px;color:#14306b}
+h2{font-size:15pt;color:#14306b;border-bottom:2px solid #d7def0;padding-bottom:3px;margin:22px 0 10px;break-after:avoid}
+h3{font-size:11.5pt;margin:14px 0 6px;break-after:avoid}
+p{margin:5px 0 8px}
+.sub{color:#5b6478;font-size:12pt;margin-bottom:14px}
+table{border-collapse:collapse;width:100%;margin:6px 0 10px;break-inside:avoid}
+th,td{border:1px solid #cfd6e4;padding:5px 8px;text-align:left;vertical-align:top}
+th{background:#eef2fa}
+.box{border-radius:8px;padding:9px 12px;margin:10px 0;break-inside:avoid}
+.tip{background:#eaf6ee;border-left:4px solid #2e9e57}
+.warn{background:#fff5e6;border-left:4px solid #e08a00}
+.info{background:#eef2fa;border-left:4px solid #3f6fd8}
+ol,ul{margin:4px 0 8px;padding-left:22px}
+li{margin:3px 0}
+code,.mono{font-family:Menlo,Consolas,monospace;font-size:9.5pt;background:#f1f3f7;padding:1px 4px;border-radius:3px}
+.page{break-before:page}
+.fig{text-align:center;margin:8px 0;break-inside:avoid}
+.fig .cap{font-size:9pt;color:#5b6478;margin-top:2px}
+.sw{display:inline-block;width:22px;height:8px;border-radius:2px;vertical-align:middle;margin-right:5px;border:1px solid #0002}
+.toc{columns:2;font-size:10.5pt}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:3px 10px}
+.kv b{color:#14306b}
+.step{display:flex;gap:10px;margin:7px 0;break-inside:avoid}
+.step .n{flex:0 0 24px;height:24px;border-radius:50%;background:#14306b;color:#fff;font-weight:700;text-align:center;line-height:24px;font-size:10pt}
+</style>
+</head>
+<body>
+
+<h1>ESP32 DMX-Steuerung</h1>
+<div class="sub">Bauanleitung, Verkabelung, Flashen und Bedienung</div>
+
+<div class="box info">
+<div class="kv">
+<b>WLAN</b><span>gastro (Passwort gastroGH29)</span>
+<b>Adresse im Browser</b><span><span class="mono">http://dmx.local</span> oder die IP-Adresse des ESP32</span>
+<b>Notfall-WLAN</b><span><span class="mono">DMX-Steuerung</span>, Passwort <span class="mono">dmx12345</span>, Adresse <span class="mono">http://192.168.4.1</span></span>
+<b>Firmware-Datei</b><span><span class="mono">esp32-dmx-merged.bin</span> an Adresse <span class="mono">0x0</span></span>
+<b>DMX-Pins</b><span>GPIO17 = Daten, GPIO4 = Senden ein</span>
+</div>
+</div>
+
+<h2>1. Das brauchst du</h2>
+<table>
+<tr><th>Teil</th><th>Hinweis</th></tr>
+<tr><td>ESP32-DevKit</td><td>Zum Beispiel „ESP32 DevKitC“ oder „ESP32-WROOM-32 Dev Board“ mit 4 MB Flash und USB-Buchse.</td></tr>
+<tr><td>RS485-Modul</td><td>Am besten ein <b>MAX3485</b>-Modul (3,3 V). Ein günstiges <b>MAX485</b>-Modul (5 V) geht auch, siehe Abschnitt 2.</td></tr>
+<tr><td>XLR-Buchse</td><td>3-polig oder 5-polig, als Kabel- oder Einbaubuchse (female, also mit Löchern).</td></tr>
+<tr><td>Kabel</td><td>5 Jumper-Kabel (Dupont), DMX- oder Mikrofonkabel zum ersten Scheinwerfer.</td></tr>
+<tr><td>Netzteil</td><td>USB-Netzteil mit 5 V und mindestens 1 A. Der ESP32 wird über USB versorgt.</td></tr>
+<tr><td>Optional</td><td>Ein 120-Ω-Widerstand oder DMX-Abschlussstecker für den letzten Scheinwerfer.</td></tr>
+</table>
+
+<h2 class="page">2. Verkabelung</h2>
+<p>Es gibt nur fünf Verbindungen zwischen ESP32 und RS485-Modul und drei zur XLR-Buchse. Die Farben im Plan sind nur Vorschläge, damit man die Leitungen auseinanderhalten kann.</p>
+
+<div class="fig">
+<svg viewBox="0 0 800 470" width="100%" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica Neue,Arial,sans-serif">
+ <defs>
+  <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="#5b6478"/></marker>
+ </defs>
+ <!-- ESP32 -->
+ <rect x="20" y="40" width="190" height="370" rx="10" fill="#1f2b44"/>
+ <rect x="70" y="22" width="90" height="30" rx="4" fill="#9aa3b5"/><text x="115" y="42" text-anchor="middle" font-size="12" fill="#1f2b44" font-weight="700">USB</text>
+ <rect x="55" y="75" width="120" height="80" rx="4" fill="#c9ced8"/><text x="115" y="112" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2b44">ESP32</text><text x="115" y="130" text-anchor="middle" font-size="10" fill="#1f2b44">WROOM-32</text>
+ <text x="115" y="395" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">ESP32-DevKit</text>
+ <circle cx="70" cy="180" r="7" fill="#3f9bff"/><text x="84" y="184" font-size="10" fill="#cfd6e4">Status-LED (GPIO2)</text>
+ <!-- ESP pins (right edge) -->
+ <g font-size="12" fill="#fff" text-anchor="end" font-weight="700">
+  <text x="190" y="224">3V3</text><text x="190" y="264">GND</text><text x="190" y="304">GPIO17</text><text x="190" y="344">GPIO4</text>
+ </g>
+ <g fill="#e9c46a"><rect x="200" y="214" width="14" height="14"/><rect x="200" y="254" width="14" height="14"/><rect x="200" y="294" width="14" height="14"/><rect x="200" y="334" width="14" height="14"/></g>
+
+ <!-- RS485 module -->
+ <rect x="360" y="170" width="170" height="220" rx="8" fill="#2f6b3a"/>
+ <rect x="410" y="235" width="70" height="50" rx="3" fill="#222"/><text x="445" y="258" text-anchor="middle" font-size="10" fill="#ddd">MAX3485</text><text x="445" y="272" text-anchor="middle" font-size="9" fill="#aaa">/ MAX485</text>
+ <text x="445" y="372" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">RS485-Modul</text>
+ <!-- left pins -->
+ <g font-size="12" fill="#fff" font-weight="700"><text x="378" y="204">RO</text><text x="378" y="244">RE</text><text x="378" y="284">DE</text><text x="378" y="324">DI</text></g>
+ <g fill="#e9c46a"><rect x="352" y="194" width="14" height="14"/><rect x="352" y="234" width="14" height="14"/><rect x="352" y="274" width="14" height="14"/><rect x="352" y="314" width="14" height="14"/></g>
+ <!-- right pins -->
+ <g font-size="12" fill="#fff" font-weight="700" text-anchor="end"><text x="512" y="204">VCC</text><text x="512" y="244">B</text><text x="512" y="284">A</text><text x="512" y="324">GND</text></g>
+ <g fill="#e9c46a"><rect x="524" y="194" width="14" height="14"/><rect x="524" y="234" width="14" height="14"/><rect x="524" y="274" width="14" height="14"/><rect x="524" y="314" width="14" height="14"/></g>
+ <text x="300" y="196" font-size="10" fill="#8a93a6" text-anchor="middle">RO frei lassen</text>
+
+ <!-- wires ESP -> RS485 -->
+ <g fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+  <!-- 3V3 -> VCC (red), over the top -->
+  <path d="M214,221 H250 V140 H570 V201 H538" stroke="#d62828"/>
+  <!-- GND -> GND (black), under bottom -->
+  <path d="M214,261 H240 V430 H531 V328" stroke="#111"/>
+  <!-- GPIO17 -> DI (yellow) -->
+  <path d="M214,301 H290 V321 H352" stroke="#e0a800"/>
+  <!-- GPIO4 -> DE and RE (blue) -->
+  <path d="M214,341 H320 V281 H352" stroke="#1f6fe0"/>
+  <path d="M320,281 V241 H352" stroke="#1f6fe0"/>
+ </g>
+ <circle cx="320" cy="281" r="5" fill="#1f6fe0"/>
+ <text x="300" y="232" font-size="10" fill="#1f6fe0" text-anchor="middle">Brücke</text>
+
+ <!-- XLR (schematisch) -->
+ <rect x="630" y="200" width="140" height="150" rx="10" fill="#3a3f4b"/>
+ <text x="700" y="222" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">XLR-Buchse</text>
+ <g font-size="12" font-weight="700" fill="#fff">
+  <circle cx="652" cy="241" r="10" fill="#111"/><text x="652" y="245.5" text-anchor="middle">2</text><text x="670" y="245">Data −</text>
+  <circle cx="652" cy="281" r="10" fill="#111"/><text x="652" y="285.5" text-anchor="middle">3</text><text x="670" y="285">Data +</text>
+  <circle cx="652" cy="321" r="10" fill="#111"/><text x="652" y="325.5" text-anchor="middle">1</text><text x="670" y="325">Masse</text>
+ </g>
+ <g fill="none" stroke-width="4" stroke-linecap="round">
+  <path d="M538,241 H642" stroke="#8a8f99"/>
+  <path d="M538,281 H642" stroke="#2a9d4b"/>
+  <path d="M538,321 H642" stroke="#111"/>
+ </g>
+ <g font-size="10.5" font-weight="700" text-anchor="middle"><text x="590" y="234" fill="#5f6570">B</text><text x="590" y="274" fill="#2a9d4b">A</text><text x="590" y="314" fill="#111">GND</text></g>
+ <!-- Lage der Pins -->
+ <circle cx="700" cy="400" r="30" fill="#5d6372"/>
+ <g font-size="10" fill="#fff" font-weight="700" text-anchor="middle">
+  <circle cx="688" cy="391" r="7" fill="#222"/><text x="688" y="394.5">2</text>
+  <circle cx="712" cy="391" r="7" fill="#222"/><text x="712" y="394.5">1</text>
+  <circle cx="700" cy="413" r="7" fill="#222"/><text x="700" y="416.5">3</text>
+ </g>
+ <text x="700" y="447" text-anchor="middle" font-size="9.5" fill="#5b6478">Nummern stehen klein auf der Buchse</text>
+ <path d="M770,275 H790" stroke="#5b6478" stroke-width="2" marker-end="url(#ar)"/>
+</svg>
+<div class="cap">Bild 1: ESP32 → RS485-Modul → XLR-Buchse → per DMX-Kabel zum ersten Scheinwerfer. Die Brücke verbindet DE und RE miteinander und mit GPIO4.</div>
+</div>
+
+<table>
+<tr><th style="width:26%">Von (ESP32)</th><th style="width:26%">Nach (RS485-Modul)</th><th>Wozu</th></tr>
+<tr><td><span class="sw" style="background:#d62828"></span><b>3V3</b></td><td><b>VCC</b></td><td>Stromversorgung des Moduls</td></tr>
+<tr><td><span class="sw" style="background:#111"></span><b>GND</b></td><td><b>GND</b></td><td>Gemeinsame Masse</td></tr>
+<tr><td><span class="sw" style="background:#e0a800"></span><b>GPIO17</b> (oft „TX2“ oder „17“)</td><td><b>DI</b></td><td>Die DMX-Daten</td></tr>
+<tr><td><span class="sw" style="background:#1f6fe0"></span><b>GPIO4</b> (oft „D4“ oder „4“)</td><td><b>DE</b> und <b>RE</b> (beide)</td><td>Schaltet das Modul auf Senden</td></tr>
+<tr><td>—</td><td><b>RO</b></td><td>Bleibt frei</td></tr>
+</table>
+
+<table>
+<tr><th style="width:26%">Von (RS485-Modul)</th><th style="width:26%">Nach (XLR-Buchse)</th><th>Bedeutung</th></tr>
+<tr><td><span class="sw" style="background:#111"></span><b>GND</b></td><td><b>Pin 1</b></td><td>Masse / Schirm</td></tr>
+<tr><td><span class="sw" style="background:#8a8f99"></span><b>B</b></td><td><b>Pin 2</b></td><td>Data − (minus)</td></tr>
+<tr><td><span class="sw" style="background:#2a9d4b"></span><b>A</b></td><td><b>Pin 3</b></td><td>Data + (plus)</td></tr>
+</table>
+
+<div class="box warn"><b>Wenn du ein MAX485-Modul (5 V) hast:</b> VCC kommt dann nicht an 3V3, sondern an <b>VIN</b> (bei manchen Boards „5V“) des ESP32. Alles andere bleibt gleich. <b>RO darf dann auf keinen Fall</b> an den ESP32 angeschlossen werden, denn dort kommen 5 V heraus.</div>
+
+<h3>Die DMX-Kette</h3>
+<div class="fig">
+<svg viewBox="0 0 760 150" width="100%" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica Neue,Arial,sans-serif">
+ <defs><marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="#2a9d4b"/></marker></defs>
+ <rect x="10" y="40" width="130" height="60" rx="8" fill="#1f2b44"/><text x="75" y="68" fill="#fff" text-anchor="middle" font-size="12" font-weight="700">ESP32 + RS485</text><text x="75" y="85" fill="#cfd6e4" text-anchor="middle" font-size="10">XLR-Buchse</text>
+ <g font-size="11" text-anchor="middle">
+  <rect x="190" y="35" width="120" height="70" rx="8" fill="#eef2fa" stroke="#3f6fd8"/><text x="250" y="62" font-weight="700">PAR 1</text><text x="250" y="80" fill="#5b6478">Adresse 1</text>
+  <rect x="360" y="35" width="120" height="70" rx="8" fill="#eef2fa" stroke="#3f6fd8"/><text x="420" y="62" font-weight="700">PAR 2</text><text x="420" y="80" fill="#5b6478">Adresse 8</text>
+  <rect x="530" y="35" width="120" height="70" rx="8" fill="#eef2fa" stroke="#3f6fd8"/><text x="590" y="62" font-weight="700">PAR 3 …</text><text x="590" y="80" fill="#5b6478">Adresse 15</text>
+  <rect x="690" y="52" width="60" height="36" rx="6" fill="#fff5e6" stroke="#e08a00"/><text x="720" y="69" font-size="10" font-weight="700">120 Ω</text><text x="720" y="82" font-size="9" fill="#5b6478">Abschluss</text>
+ </g>
+ <g stroke="#2a9d4b" stroke-width="3" marker-end="url(#a2)"><line x1="140" y1="70" x2="186" y2="70"/><line x1="310" y1="70" x2="356" y2="70"/><line x1="480" y1="70" x2="526" y2="70"/><line x1="650" y1="70" x2="686" y2="70"/></g>
+ <g font-size="9" fill="#5b6478" text-anchor="middle"><text x="250" y="122">IN → OUT</text><text x="420" y="122">IN → OUT</text><text x="590" y="122">IN → OUT</text></g>
+</svg>
+<div class="cap">Bild 2: Die Scheinwerfer werden hintereinander verbunden, jeweils von DMX OUT zum nächsten DMX IN.</div>
+</div>
+<p>Vom ESP32 geht ein DMX-Kabel zum <b>DMX IN</b> des ersten Scheinwerfers, von dessen <b>DMX OUT</b> weiter zum nächsten und so fort. Am letzten Gerät steckt idealerweise ein Abschlussstecker (120 Ω zwischen Pin 2 und 3). Bei kurzen Kabeln funktioniert es meist auch ohne.</p>
+<div class="box tip"><b>Tipp:</b> Viele RS485-Module haben bereits einen 120-Ω-Widerstand eingebaut (Bauteil „R7“ oder „121“). Das ist am Anfang der Kette in Ordnung und muss nicht entfernt werden.</div>
+
+<h2>3. Firmware aufspielen (flashen)</h2>
+<p>Das geht einmalig per USB-Kabel. Am einfachsten funktioniert es direkt im Browser <b>Chrome</b> oder <b>Edge</b> am PC.</p>
+<div class="step"><div class="n">1</div><div>ESP32 mit einem USB-<b>Datenkabel</b> an den PC anschließen. Reine Ladekabel funktionieren nicht.</div></div>
+<div class="step"><div class="n">2</div><div>Die Seite <span class="mono">https://espressif.github.io/esptool-js/</span> öffnen.</div></div>
+<div class="step"><div class="n">3</div><div>Baudrate <b>921600</b> wählen, auf <b>Connect</b> klicken und den Anschluss auswählen (meist „CP210x“ oder „USB Serial“).</div></div>
+<div class="step"><div class="n">4</div><div>Bei <b>Flash Address</b> den Wert <b>0x0</b> eintragen, die Datei <span class="mono">esp32-dmx-merged.bin</span> wählen und auf <b>Program</b> klicken.</div></div>
+<div class="step"><div class="n">5</div><div>Warten, bis „Leaving…“ erscheint. Danach einmal die <b>EN</b>- oder <b>RST</b>-Taste drücken oder das USB-Kabel kurz abziehen.</div></div>
+<div class="box warn"><b>Verbindung klappt nicht?</b> Die <b>BOOT</b>-Taste am ESP32 gedrückt halten, während du auf Connect klickst. Wird kein Anschluss angezeigt, fehlt der USB-Treiber (Suchbegriff „CP210x Treiber“ oder „CH340 Treiber“).</div>
+<p><b>Alternative per Kommandozeile:</b> <span class="mono">pip install esptool</span>, danach <span class="mono">esptool.py --chip esp32 write_flash 0x0 esp32-dmx-merged.bin</span></p>
+<p><b>Spätere Updates</b> gehen ohne Kabel: In der Oberfläche unter <b>System → Firmware-Update</b> die Datei <span class="mono">esp32-dmx-update.bin</span> hochladen. Wichtig ist hier die Update-Datei, nicht die „merged“-Datei.</p>
+
+<h2>4. Verbinden</h2>
+<div class="step"><div class="n">1</div><div>ESP32 einschalten. Er verbindet sich automatisch mit dem WLAN <b>gastro</b>. Wenn die blaue LED dauerhaft leuchtet, ist er verbunden.</div></div>
+<div class="step"><div class="n">2</div><div>Handy oder Laptop ebenfalls ins WLAN <b>gastro</b> einbuchen.</div></div>
+<div class="step"><div class="n">3</div><div>Im Browser <span class="mono">http://dmx.local</span> öffnen. Klappt das nicht (häufig bei Android), die IP-Adresse des ESP32 eingeben. Du findest sie im Router unter dem Namen „dmx“.</div></div>
+<div class="box tip"><b>Tipp:</b> Leg dir die Seite als Lesezeichen oder über „Zum Startbildschirm hinzufügen“ als App-Symbol auf das Handy.</div>
+<table>
+<tr><th>LED</th><th>Bedeutung</th></tr>
+<tr><td>leuchtet dauerhaft</td><td>Mit dem WLAN gastro verbunden</td></tr>
+<tr><td>blinkt schnell</td><td>Verbindet gerade</td></tr>
+<tr><td>blinkt langsam (1×/s)</td><td>WLAN nicht gefunden, der Notfall-Access-Point ist aktiv</td></tr>
+</table>
+<p><b>Notfall-Access-Point:</b> Findet der ESP32 das WLAN 20 Sekunden lang nicht, öffnet er ein eigenes WLAN namens <b>DMX-Steuerung</b> (Passwort <b>dmx12345</b>). Nach dem Verbinden öffnet sich die Oberfläche meist von allein, sonst <span class="mono">http://192.168.4.1</span> aufrufen. Dort kannst du unter <b>System</b> ein anderes WLAN eintragen.</p>
+
+<h2>5. Scheinwerfer einrichten</h2>
+<p>Jeder Scheinwerfer hört auf eine <b>Startadresse</b> und belegt ab dort so viele Kanäle, wie sein <b>Modus</b> hat. Die Adresse und den Modus stellst du direkt am Scheinwerfer ein (Display oder DIP-Schalter), und in der Oberfläche unter <b>Geräte</b> trägst du dieselben Werte ein.</p>
+<div class="fig">
+<svg viewBox="0 0 760 72" width="100%" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica Neue,Arial,sans-serif" font-size="10">
+ <text x="102.5" y="20" text-anchor="middle" font-size="12" font-weight="700">PAR 1  ·  Adresse 1</text>
+ <path d="M17,28 H188" stroke="#5b6478" stroke-width="1.5"/>
+ <rect x="15" y="34" width="23" height="30" rx="3" fill="#cfe0ff" stroke="#8a93a6" stroke-width=".6"/><text x="26.5" y="54" text-anchor="middle">1</text>
+ <rect x="40" y="34" width="23" height="30" rx="3" fill="#cfe0ff" stroke="#8a93a6" stroke-width=".6"/><text x="51.5" y="54" text-anchor="middle">2</text>
+ <rect x="65" y="34" width="23" height="30" rx="3" fill="#cfe0ff" stroke="#8a93a6" stroke-width=".6"/><text x="76.5" y="54" text-anchor="middle">3</text>
+ <rect x="90" y="34" width="23" height="30" rx="3" fill="#cfe0ff" stroke="#8a93a6" stroke-width=".6"/><text x="101.5" y="54" text-anchor="middle">4</text>
+ <rect x="115" y="34" width="23" height="30" rx="3" fill="#cfe0ff" stroke="#8a93a6" stroke-width=".6"/><text x="126.5" y="54" text-anchor="middle">5</text>
+ <rect x="140" y="34" width="23" height="30" rx="3" fill="#cfe0ff" stroke="#8a93a6" stroke-width=".6"/><text x="151.5" y="54" text-anchor="middle">6</text>
+ <rect x="165" y="34" width="23" height="30" rx="3" fill="#cfe0ff" stroke="#8a93a6" stroke-width=".6"/><text x="176.5" y="54" text-anchor="middle">7</text>
+ <text x="277.5" y="20" text-anchor="middle" font-size="12" font-weight="700">PAR 2  ·  Adresse 8</text>
+ <path d="M192,28 H363" stroke="#5b6478" stroke-width="1.5"/>
+ <rect x="190" y="34" width="23" height="30" rx="3" fill="#d4f1dc" stroke="#8a93a6" stroke-width=".6"/><text x="201.5" y="54" text-anchor="middle">8</text>
+ <rect x="215" y="34" width="23" height="30" rx="3" fill="#d4f1dc" stroke="#8a93a6" stroke-width=".6"/><text x="226.5" y="54" text-anchor="middle">9</text>
+ <rect x="240" y="34" width="23" height="30" rx="3" fill="#d4f1dc" stroke="#8a93a6" stroke-width=".6"/><text x="251.5" y="54" text-anchor="middle">10</text>
+ <rect x="265" y="34" width="23" height="30" rx="3" fill="#d4f1dc" stroke="#8a93a6" stroke-width=".6"/><text x="276.5" y="54" text-anchor="middle">11</text>
+ <rect x="290" y="34" width="23" height="30" rx="3" fill="#d4f1dc" stroke="#8a93a6" stroke-width=".6"/><text x="301.5" y="54" text-anchor="middle">12</text>
+ <rect x="315" y="34" width="23" height="30" rx="3" fill="#d4f1dc" stroke="#8a93a6" stroke-width=".6"/><text x="326.5" y="54" text-anchor="middle">13</text>
+ <rect x="340" y="34" width="23" height="30" rx="3" fill="#d4f1dc" stroke="#8a93a6" stroke-width=".6"/><text x="351.5" y="54" text-anchor="middle">14</text>
+ <text x="452.5" y="20" text-anchor="middle" font-size="12" font-weight="700">PAR 3  ·  Adresse 15</text>
+ <path d="M367,28 H538" stroke="#5b6478" stroke-width="1.5"/>
+ <rect x="365" y="34" width="23" height="30" rx="3" fill="#ffe7c2" stroke="#8a93a6" stroke-width=".6"/><text x="376.5" y="54" text-anchor="middle">15</text>
+ <rect x="390" y="34" width="23" height="30" rx="3" fill="#ffe7c2" stroke="#8a93a6" stroke-width=".6"/><text x="401.5" y="54" text-anchor="middle">16</text>
+ <rect x="415" y="34" width="23" height="30" rx="3" fill="#ffe7c2" stroke="#8a93a6" stroke-width=".6"/><text x="426.5" y="54" text-anchor="middle">17</text>
+ <rect x="440" y="34" width="23" height="30" rx="3" fill="#ffe7c2" stroke="#8a93a6" stroke-width=".6"/><text x="451.5" y="54" text-anchor="middle">18</text>
+ <rect x="465" y="34" width="23" height="30" rx="3" fill="#ffe7c2" stroke="#8a93a6" stroke-width=".6"/><text x="476.5" y="54" text-anchor="middle">19</text>
+ <rect x="490" y="34" width="23" height="30" rx="3" fill="#ffe7c2" stroke="#8a93a6" stroke-width=".6"/><text x="501.5" y="54" text-anchor="middle">20</text>
+ <rect x="515" y="34" width="23" height="30" rx="3" fill="#ffe7c2" stroke="#8a93a6" stroke-width=".6"/><text x="526.5" y="54" text-anchor="middle">21</text>
+ <text x="627.5" y="20" text-anchor="middle" font-size="12" font-weight="700">PAR 4  ·  Adresse 22</text>
+ <path d="M542,28 H713" stroke="#5b6478" stroke-width="1.5"/>
+ <rect x="540" y="34" width="23" height="30" rx="3" fill="#f6d4ef" stroke="#8a93a6" stroke-width=".6"/><text x="551.5" y="54" text-anchor="middle">22</text>
+ <rect x="565" y="34" width="23" height="30" rx="3" fill="#f6d4ef" stroke="#8a93a6" stroke-width=".6"/><text x="576.5" y="54" text-anchor="middle">23</text>
+ <rect x="590" y="34" width="23" height="30" rx="3" fill="#f6d4ef" stroke="#8a93a6" stroke-width=".6"/><text x="601.5" y="54" text-anchor="middle">24</text>
+ <rect x="615" y="34" width="23" height="30" rx="3" fill="#f6d4ef" stroke="#8a93a6" stroke-width=".6"/><text x="626.5" y="54" text-anchor="middle">25</text>
+ <rect x="640" y="34" width="23" height="30" rx="3" fill="#f6d4ef" stroke="#8a93a6" stroke-width=".6"/><text x="651.5" y="54" text-anchor="middle">26</text>
+ <rect x="665" y="34" width="23" height="30" rx="3" fill="#f6d4ef" stroke="#8a93a6" stroke-width=".6"/><text x="676.5" y="54" text-anchor="middle">27</text>
+ <rect x="690" y="34" width="23" height="30" rx="3" fill="#f6d4ef" stroke="#8a93a6" stroke-width=".6"/><text x="701.5" y="54" text-anchor="middle">28</text>
+ <text x="721" y="54" font-size="11" fill="#5b6478">… 512</text>
+</svg>
+<div class="cap">Bild 3: Vier Scheinwerfer mit je 7 Kanälen belegen die DMX-Kanäle 1–28 lückenlos.</div>
+</div>
+<table>
+<tr><th>Scheinwerfer</th><th>Am Gerät einstellen</th><th>Belegt Kanäle</th></tr>
+<tr><td>PAR 1</td><td>Adresse <b>A001</b> / d001, Modus <b>7CH</b></td><td>1–7</td></tr>
+<tr><td>PAR 2</td><td>Adresse <b>A008</b>, Modus 7CH</td><td>8–14</td></tr>
+<tr><td>PAR 3</td><td>Adresse <b>A015</b>, Modus 7CH</td><td>15–21</td></tr>
+<tr><td>PAR 4</td><td>Adresse <b>A022</b>, Modus 7CH</td><td>22–28</td></tr>
+</table>
+<p>So ist der ESP32 ab Werk eingestellt. Hast du andere Geräte, passt du sie unter <b>Geräte</b> an:</p>
+<ol>
+<li>Unten ein <b>Profil</b> wählen (zum Beispiel „RGBW (4 Kanäle)“) und auf <b>+ Hinzufügen</b> tippen.</li>
+<li>Die Kanalbelegung mit der Anleitung des Scheinwerfers vergleichen und bei Bedarf jeden Kanal per Auswahlliste anpassen (Dimmer, Rot, Grün, Blau, Weiß, Amber, UV, Strobe, Festwert).</li>
+<li>Mit <b>Adressen automatisch</b> werden die Adressen lückenlos vergeben. Diese Adressen dann am Scheinwerfer einstellen.</li>
+<li>Auf <b>Speichern</b> tippen. Überschneiden sich zwei Geräte, erscheint eine gelbe Warnung.</li>
+<li>Mit dem 💡-Knopf blinkt das jeweilige Gerät weiß. So siehst du, welches welches ist.</li>
+</ol>
+<div class="box info"><b>Festwert</b> sendet immer den eingetragenen Zahlenwert. Das ist nützlich für Kanäle wie „Modus“ oder „Makro“, die meist auf 0 stehen müssen. Beim <b>Strobe</b>-Kanal ist die Zahl der Ruhewert: Normalerweise ist das 0, bei manchen Geräten muss dort 255 stehen, damit überhaupt Licht kommt.</div>
+
+<h2>6. Bedienung</h2>
+<table>
+<tr><th style="width:22%">Seite</th><th>Was du dort machst</th></tr>
+<tr><td><b>Steuerung</b></td><td>Oben die Scheinwerfer antippen, die du steuern willst (lange drücken lässt das Gerät blinken). <b>AN</b> und <b>AUS</b> schalten sie. Die Farbe wählst du am Farbrad, über die Farbfelder oder mit den Reglern für Rot, Grün, Blau, Weiß, Amber und UV. <b>Dimmer</b> regelt die Helligkeit der gewählten Geräte, <b>Master</b> die Helligkeit aller Geräte. <b>Überblendung</b> bestimmt, wie weich Farbwechsel ablaufen. Die Effekte sind Regenbogen, Atmen, Lauflicht, Farbwechsel, Feuer, Disco und Blaulicht, jeweils mit einstellbarem <b>Tempo</b>. Dazu kommen ein <b>Stroboskop</b> und oben rechts <b>Blackout</b>, das sofort alles dunkel schaltet.</td></tr>
+<tr><td><b>Szenen</b></td><td>Es gibt 12 Speicherplätze. Ein leeres Feld antippen speichert die aktuelle Stimmung, ein volles Feld antippen ruft sie ab. Lange drücken überschreibt oder löscht.</td></tr>
+<tr><td><b>Geräte</b></td><td>Scheinwerfer, Adressen und Kanäle festlegen (siehe Abschnitt 5).</td></tr>
+<tr><td><b>Kanäle</b></td><td>Einzelne DMX-Kanäle direkt setzen, um sie zu testen, und ein Live-Monitor aller 512 Kanäle.</td></tr>
+<tr><td><b>System</b></td><td>WLAN (auch mit fester IP), Pins, Art-Net-Empfang, Verhalten beim Einschalten (aus, letzter Zustand oder eine Szene), Backup, Firmware-Update, Neustart und Werkseinstellungen.</td></tr>
+</table>
+<div class="box info"><b>Art-Net:</b> Wenn du später ein Lichtpult-Programm wie QLC+ am Laptop nutzen willst, schalte unter System den <b>Art-Net-Empfang</b> ein und wähle das Universum (meist 0). Solange Art-Net-Daten ankommen, haben sie Vorrang, und oben leuchtet das Art-Net-Symbol.</div>
+
+<h2>7. Wenn etwas nicht geht</h2>
+<table>
+<tr><th style="width:34%">Problem</th><th>Lösung</th></tr>
+<tr><td>Scheinwerfer reagiert gar nicht</td><td>Steht der Scheinwerfer auf DMX-Betrieb (nicht Auto/Sound)? Stimmen Adresse und Modus? Ist <b>Master</b> aufgezogen und <b>Blackout</b> aus? Mit <b>Kanäle → Kanaltest</b> den Kanal 1 auf 100 % stellen.</td></tr>
+<tr><td>Flackert oder reagiert wirr</td><td><b>A und B vertauscht?</b> Dann die beiden Leitungen an der XLR-Buchse tauschen (Pin 2 ↔ 3). Außerdem prüfen, ob GND verbunden ist und am letzten Gerät ein Abschluss steckt.</td></tr>
+<tr><td>Falsche Farben</td><td>Die Kanalreihenfolge im Profil passt nicht. Unter <b>Geräte</b> die Kanäle wie in der Anleitung des Scheinwerfers belegen.</td></tr>
+<tr><td>Licht bleibt dunkel, obwohl Farbe gesetzt ist</td><td>Der Dimmer- oder Strobe-Kanal ist falsch. Manche Geräte brauchen am Strobe-Kanal einen Ruhewert von 255.</td></tr>
+<tr><td>Oberfläche nicht erreichbar</td><td>Ist das Handy im gleichen WLAN? Statt <span class="mono">dmx.local</span> die IP-Adresse probieren. Blinkt die LED langsam, mit dem WLAN <b>DMX-Steuerung</b> verbinden.</td></tr>
+<tr><td>Alles zurücksetzen</td><td>Unter <b>System → Werkseinstellungen</b>. Alternativ neu flashen, vorher mit <span class="mono">esptool.py erase_flash</span> löschen.</td></tr>
+</table>
+<p style="color:#5b6478;font-size:9pt;margin-top:16px">Quellcode und neueste Firmware: github.com/maggafee/ESP32-DMX</p>
+</body>
+</html>
