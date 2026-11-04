@@ -16,7 +16,7 @@
 #include "esp_system.h"
 #include "webui.h"
 
-#define FW_VERSION "1.1.1"
+#define FW_VERSION "1.1.2"
 #define MAX_FIX 24
 #define MAX_CH 16
 #define MAX_SCENES 12
@@ -438,6 +438,13 @@ void startWiFi() {
   }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
   WiFi.onEvent([](WiFiEvent_t e, WiFiEventInfo_t info) { staReason = 0; }, ARDUINO_EVENT_WIFI_STA_GOT_IP);
   WiFi.onEvent([](WiFiEvent_t e, WiFiEventInfo_t info) { Serial.println("Geraet mit Direktverbindung verbunden"); }, ARDUINO_EVENT_WIFI_AP_STACONNECTED);
+  // Funktest: Netze in der Umgebung auflisten (zeigt, ob das Funkteil empfängt)
+  Serial.println("Funktest: suche WLAN-Netze ...");
+  int n = WiFi.scanNetworks(false, true);
+  Serial.printf("Funktest: %d Netze gefunden\n", n);
+  for (int i = 0; i < n && i < 12; i++)
+    Serial.printf("  %-32s  %4d dBm  Kanal %2d\n", WiFi.SSID(i).length() ? WiFi.SSID(i).c_str() : "(versteckt)", WiFi.RSSI(i), WiFi.channel(i));
+  WiFi.scanDelete();
   if (cfg.wifiMode == 1 && strlen(cfg.ssid)) { WiFi.setAutoReconnect(true); staBegin(); }
   else startAP();   // Direktverbindung: ESP32 öffnet sein eigenes WLAN
   staLostSince = millis();
