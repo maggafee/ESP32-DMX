@@ -13,9 +13,10 @@
 #include <Update.h>
 #include <ArduinoJson.h>
 #include "driver/uart.h"
+#include "esp_system.h"
 #include "webui.h"
 
-#define FW_VERSION "1.1.0"
+#define FW_VERSION "1.1.1"
 #define MAX_FIX 24
 #define MAX_CH 16
 #define MAX_SCENES 12
@@ -395,10 +396,15 @@ const char *reasonText(uint8_t r) {
 
 void startAP() {
   if (apActive) return;
-  WiFi.mode(cfg.wifiMode == 0 ? WIFI_AP : WIFI_AP_STA);
-  WiFi.softAPConfig(AP_IP, AP_IP, IPAddress(255, 255, 255, 0));
-  WiFi.softAP(cfg.apSsid, strlen(cfg.apPass) >= 8 ? cfg.apPass : nullptr, 1);
-  delay(100);
+  bool m = WiFi.mode(cfg.wifiMode == 0 ? WIFI_AP : WIFI_AP_STA);
+  WiFi.setTxPower(WIFI_POWER_15dBm);   // etwas weniger Sendeleistung: stabiler bei schwacher USB-Versorgung
+  bool ok = WiFi.softAP(cfg.apSsid, strlen(cfg.apPass) >= 8 ? cfg.apPass : nullptr, 1, 0, 4);
+  delay(200);
+  bool ipok = WiFi.softAPConfig(AP_IP, AP_IP, IPAddress(255, 255, 255, 0));
+  Serial.printf("Direktverbindung: mode=%d softAP=%d ipconfig=%d  WLAN-Name '%s'  Passwort '%s'  IP %s  MAC %s\n",
+                m, ok, ipok, cfg.apSsid, strlen(cfg.apPass) >= 8 ? cfg.apPass : "(offen)",
+                WiFi.softAPIP().toString().c_str(), WiFi.softAPmacAddress().c_str());
+  if (!ok) { delay(500); ok = WiFi.softAP(cfg.apSsid, strlen(cfg.apPass) >= 8 ? cfg.apPass : nullptr, 1, 0, 4); Serial.printf("softAP 2. Versuch: %d\n", ok); }
   dns.start(53, "*", WiFi.softAPIP());
   apActive = true;
   // Ständiges Neuverbinden lässt den Access Point unbrauchbar werden -> nur noch gezielt erneut versuchen
@@ -431,6 +437,7 @@ void startWiFi() {
     Serial.printf("WLAN getrennt: %u %s\n", staReason, reasonText(staReason));
   }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
   WiFi.onEvent([](WiFiEvent_t e, WiFiEventInfo_t info) { staReason = 0; }, ARDUINO_EVENT_WIFI_STA_GOT_IP);
+  WiFi.onEvent([](WiFiEvent_t e, WiFiEventInfo_t info) { Serial.println("Geraet mit Direktverbindung verbunden"); }, ARDUINO_EVENT_WIFI_AP_STACONNECTED);
   if (cfg.wifiMode == 1 && strlen(cfg.ssid)) { WiFi.setAutoReconnect(true); staBegin(); }
   else startAP();   // Direktverbindung: ESP32 öffnet sein eigenes WLAN
   staLostSince = millis();
@@ -756,6 +763,8 @@ void setup() {
   Serial.begin(115200);
   delay(200);
   Serial.println("\nESP32 DMX-Steuerung " FW_VERSION);
+  Serial.printf("Chip %s Rev %d, %d Kerne, Flash %u MB, Reset-Grund %d (15 = Brownout/Stromversorgung zu schwach)\n",
+                ESP.getChipModel(), ESP.getChipRevision(), ESP.getChipCores(), ESP.getFlashChipSize() / 1048576, (int)esp_reset_reason());
   lock = xSemaphoreCreateMutex();
   for (int a = 0; a <= 512; a++) override_[a] = -1;
   memset(artBuf, 0, sizeof(artBuf));
@@ -793,6 +802,13 @@ void loop() {
     xSemaphoreGive(lock);
     copyStr(sc.name, "last", sizeof(sc.name));
     saveSceneSlot("last", sc);
+  }
+  static uint32_t lastLog = 0;
+  if (millis() - lastLog > 10000) {
+    lastLog = millis();
+    Serial.printf("[%lus] Modus %s | Direkt-WLAN '%s' %s, %d Geraete verbunden | Haus-WLAN %s\n", millis() / 1000,
+                  cfg.wifiMode == 0 ? "Direkt" : "WLAN", cfg.apSsid, apActive ? "AN" : "aus", WiFi.softAPgetStationNum(),
+                  WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString().c_str() : (strlen(cfg.ssid) ? reasonText(staReason) : "nicht eingerichtet"));
   }
   if (rebootPending && millis() > rebootAt) ESP.restart();
   delay(2);
