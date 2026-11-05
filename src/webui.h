@@ -76,7 +76,7 @@ input[type=text],input[type=number],input[type=password],select{background:#1113
   <p class="mut" style="margin:0">Wie soll sich die DMX-Steuerung mit deinem Handy oder PC verbinden? Das kannst du später unter <b>System</b> jederzeit ändern.</p>
  </div>
  <div class="card f">
-  <label class="opt on" id="o0"><input type="radio" name="wm" value="0" checked><b>Direktverbindung</b><br><span class="mut">Der ESP32 öffnet sein eigenes, passwortgeschütztes WLAN. Handy oder PC verbinden sich direkt damit, ein Router wird nicht gebraucht. Adresse: <b>http://192.168.1.4</b></span></label>
+  <label class="opt on" id="o0"><input type="radio" name="wm" value="0" checked><b>Direktverbindung</b><br><span class="mut">Der ESP32 öffnet sein eigenes, passwortgeschütztes WLAN. Handy oder PC verbinden sich direkt damit, ein Router wird nicht gebraucht. Adresse: <b>http://192.168.4.1</b> oder <b>http://dmx.local</b></span></label>
   <label class="opt" id="o1"><input type="radio" name="wm" value="1"><b>Mit vorhandenem WLAN verbinden</b><br><span class="mut">Der ESP32 meldet sich in deinem WLAN an (nur 2,4 GHz). Erreichbar unter <b>http://dmx.local</b> oder seiner IP im Router. Klappt das nicht, öffnet er automatisch wieder die Direktverbindung.</span></label>
  </div>
  <div class="card f" id="sw1" style="display:none">
@@ -190,7 +190,7 @@ input[type=text],input[type=number],input[type=password],select{background:#1113
   <h2>WLAN</h2>
   <div class="mut" id="winfo"></div>
   <label>Verbindungsart</label>
-  <select id="w_mode"><option value="0">Direktverbindung (eigenes WLAN des ESP32, 192.168.1.4)</option><option value="1">Vorhandenes WLAN (Direktverbindung nur als Notfall)</option></select>
+  <select id="w_mode"><option value="0">Direktverbindung (eigenes WLAN des ESP32, 192.168.4.1)</option><option value="1">Vorhandenes WLAN (Direktverbindung nur als Notfall)</option></select>
   <div class="row" style="margin-top:8px"><button class="b" id="scan">WLAN-Netze suchen</button></div>
   <div id="scanl" class="chips row" style="margin-top:6px"></div>
   <label>SSID</label><input type="text" id="w_ssid">
@@ -358,7 +358,7 @@ async function poll(){try{const s=await api('/api/state');const first=!st;
  if(first&&s.setup)openWizard();st=s;if(first)sel=new Set(st.fixtures.map((_,i)=>i));sel=new Set([...sel].filter(i=>i<st.fixtures.length));
  renderSel();syncCtl();renderTop();
  $('sysinfo').innerHTML=`Firmware ${s.fw} · Laufzeit ${Math.floor(s.up/3600)}h ${Math.floor(s.up/60)%60}min · freier Speicher ${(s.heap/1024).toFixed(0)} kB`;
- $('winfo').innerHTML=s.wifi.mode==0?`Direktverbindung aktiv: WLAN <b>${esc(s.wifi.apSsid)}</b>, Adresse <b>http://192.168.1.4</b>`:((s.wifi.sta?`Verbunden mit <b>${esc(s.wifi.ssid)}</b>, IP <b>${s.wifi.ip}</b> (${s.wifi.rssi} dBm), auch erreichbar als <b>http://${esc(s.wifi.host)}.local</b>`:'Nicht mit dem WLAN <b>'+esc(s.wifi.ssid)+'</b> verbunden.'+(s.wifi.reason?' Grund: <b>'+esc(s.wifi.reason)+'</b>':''))+(s.wifi.ap?` · Direktverbindung als Notfall aktiv (192.168.1.4)`:''));
+ $('winfo').innerHTML=s.wifi.mode==0?`Direktverbindung aktiv: WLAN <b>${esc(s.wifi.apSsid)}</b>, Adresse <b>http://192.168.4.1</b> oder <b>http://dmx.local</b>`:((s.wifi.sta?`Verbunden mit <b>${esc(s.wifi.ssid)}</b>, IP <b>${s.wifi.ip}</b> (${s.wifi.rssi} dBm), auch erreichbar als <b>http://${esc(s.wifi.host)}.local</b>`:'Nicht mit dem WLAN <b>'+esc(s.wifi.ssid)+'</b> verbunden.'+(s.wifi.reason?' Grund: <b>'+esc(s.wifi.reason)+'</b>':''))+(s.wifi.ap?` · Direktverbindung als Notfall aktiv (192.168.4.1)`:''));
 }catch(e){$('wdot').className='dot bad'}}
 setInterval(poll,2000);poll();
 
@@ -425,7 +425,7 @@ function fillSet(){const w=cfg.wifi,d=cfg.dmx;['ssid','pass','host','ip','gw','m
  $('d_tx').value=d.tx;$('d_de').value=d.de;$('d_led').value=d.led;$('d_rate').value=d.rate;$('d_art').checked=!!d.art;$('d_uni').value=d.uni;$('d_boot').value=d.boot}
 $('savewifi').onclick=async()=>{const w={};['ssid','pass','host','ip','gw','mask','dns','apSsid','apPass'].forEach(k=>w[k]=$('w_'+k).value);w.static=$('w_static').checked?1:0;w.mode=+$('w_mode').value;
  if(w.apPass&&w.apPass.length<8)return toast('AP-Passwort: mind. 8 Zeichen');
- if(w.mode==1&&!w.ssid)return toast('Bitte WLAN-Name eintragen');if(!confirm('Speichern und neu starten? Klappt das WLAN nicht, öffnet der ESP32 nach 20 s wieder die Direktverbindung (192.168.1.4).'))return;
+ if(w.mode==1&&!w.ssid)return toast('Bitte WLAN-Name eintragen');if(!confirm('Speichern und neu starten? Klappt das WLAN nicht, öffnet der ESP32 nach 20 s wieder die Direktverbindung (192.168.4.1).'))return;
  await api('/api/config',{wifi:w});await api('/api/reboot',{});toast('Neustart …')};
 $('savedmx').onclick=async()=>{const r=await api('/api/config',{dmx:{tx:+$('d_tx').value,de:+$('d_de').value,led:+$('d_led').value,rate:+$('d_rate').value,art:$('d_art').checked?1:0,uni:+$('d_uni').value,boot:+$('d_boot').value,bootScene:+$('d_bootScene').value}});
  if(r.reboot&&confirm('Pins geändert – jetzt neu starten?'))await api('/api/reboot',{});else toast('Gespeichert')};
@@ -449,8 +449,8 @@ $('s_save').onclick=async()=>{const m=+document.querySelector('input[name=wm]:ch
  if(!w.apSsid)return toast('Bitte Namen für das ESP32-WLAN eingeben');if(w.apPass.length<8)return toast('Passwort: mindestens 8 Zeichen');
  if(m==1){w.ssid=$('s_ssid').value.trim();w.pass=$('s_pass').value;if(!w.ssid)return toast('Bitte WLAN-Name eingeben')}
  await api('/api/config',{wifi:w});await api('/api/reboot',{});
- $('s_save').disabled=true;$('s_msg').innerHTML=m==0?`Gespeichert, der ESP32 startet neu. Verbinde dich in ca. 10 Sekunden mit dem WLAN <b>${esc(w.apSsid)}</b> (Passwort wie eben eingegeben) und öffne <b>http://192.168.1.4</b>.`
-  :`Gespeichert, der ESP32 startet neu und verbindet sich mit <b>${esc(w.ssid)}</b>. Wechsle mit dem Handy in dieses WLAN und öffne <b>http://dmx.local</b> oder die IP aus dem Router. Klappt die Anmeldung nicht, ist er nach ca. 20 Sekunden wieder als <b>${esc(w.apSsid)}</b> unter http://192.168.1.4 erreichbar.`};
+ $('s_save').disabled=true;$('s_msg').innerHTML=m==0?`Gespeichert, der ESP32 startet neu. Verbinde dich in ca. 10 Sekunden mit dem WLAN <b>${esc(w.apSsid)}</b> (Passwort wie eben eingegeben) und öffne <b>http://192.168.4.1</b>.`
+  :`Gespeichert, der ESP32 startet neu und verbindet sich mit <b>${esc(w.ssid)}</b>. Wechsle mit dem Handy in dieses WLAN und öffne <b>http://dmx.local</b> oder die IP aus dem Router. Klappt die Anmeldung nicht, ist er nach ca. 20 Sekunden wieder als <b>${esc(w.apSsid)}</b> unter http://192.168.4.1 erreichbar.`};
 $('doupd').onclick=async()=>{const f=$('fw').files[0];if(!f)return toast('Bitte .bin wählen');const fd=new FormData();fd.append('fw',f);toast('Lade hoch …');
  const r=await fetch('/update',{method:'POST',body:fd});toast(await r.text())};
 </script>

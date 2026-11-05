@@ -16,13 +16,13 @@
 #include "esp_system.h"
 #include "webui.h"
 
-#define FW_VERSION "1.1.2"
+#define FW_VERSION "1.2.0"
 #define MAX_FIX 24
 #define MAX_CH 16
 #define MAX_SCENES 12
 #define DMX_PORT UART_NUM_2
 #define CFG_MAGIC 0xD3A51002u
-#define AP_IP IPAddress(192, 168, 1, 4)
+#define AP_IP IPAddress(192, 168, 4, 1)
 #define SCN_MAGIC 0x5CE0E001u
 
 // ---------------------------------------------------------------- Typen
@@ -394,17 +394,19 @@ const char *reasonText(uint8_t r) {
   }
 }
 
+uint8_t apChannel = 6;
+
 void startAP() {
   if (apActive) return;
   bool m = WiFi.mode(cfg.wifiMode == 0 ? WIFI_AP : WIFI_AP_STA);
-  WiFi.setTxPower(WIFI_POWER_15dBm);   // etwas weniger Sendeleistung: stabiler bei schwacher USB-Versorgung
-  bool ok = WiFi.softAP(cfg.apSsid, strlen(cfg.apPass) >= 8 ? cfg.apPass : nullptr, 1, 0, 4);
-  delay(200);
   bool ipok = WiFi.softAPConfig(AP_IP, AP_IP, IPAddress(255, 255, 255, 0));
-  Serial.printf("Direktverbindung: mode=%d softAP=%d ipconfig=%d  WLAN-Name '%s'  Passwort '%s'  IP %s  MAC %s\n",
-                m, ok, ipok, cfg.apSsid, strlen(cfg.apPass) >= 8 ? cfg.apPass : "(offen)",
+  bool ok = WiFi.softAP(cfg.apSsid, strlen(cfg.apPass) >= 8 ? cfg.apPass : nullptr, apChannel, 0, 4);
+  delay(200);
+  WiFi.setTxPower(WIFI_POWER_19_5dBm); // volle Sendeleistung
+  Serial.printf("Direktverbindung: mode=%d softAP=%d ipconfig=%d  WLAN-Name '%s'  Passwort '%s'  Kanal %d  IP %s  MAC %s\n",
+                m, ok, ipok, cfg.apSsid, strlen(cfg.apPass) >= 8 ? cfg.apPass : "(offen)", apChannel,
                 WiFi.softAPIP().toString().c_str(), WiFi.softAPmacAddress().c_str());
-  if (!ok) { delay(500); ok = WiFi.softAP(cfg.apSsid, strlen(cfg.apPass) >= 8 ? cfg.apPass : nullptr, 1, 0, 4); Serial.printf("softAP 2. Versuch: %d\n", ok); }
+  if (!ok) { delay(500); ok = WiFi.softAP(cfg.apSsid, strlen(cfg.apPass) >= 8 ? cfg.apPass : nullptr, apChannel, 0, 4); Serial.printf("softAP 2. Versuch: %d\n", ok); }
   dns.start(53, "*", WiFi.softAPIP());
   apActive = true;
   // Ständiges Neuverbinden lässt den Access Point unbrauchbar werden -> nur noch gezielt erneut versuchen
@@ -444,6 +446,13 @@ void startWiFi() {
   Serial.printf("Funktest: %d Netze gefunden\n", n);
   for (int i = 0; i < n && i < 12; i++)
     Serial.printf("  %-32s  %4d dBm  Kanal %2d\n", WiFi.SSID(i).length() ? WiFi.SSID(i).c_str() : "(versteckt)", WiFi.RSSI(i), WiFi.channel(i));
+  {
+    int load[3] = {0, 0, 0}; const uint8_t chs[3] = {1, 6, 11};
+    for (int i = 0; i < n; i++) for (int k = 0; k < 3; k++) if (abs(WiFi.channel(i) - chs[k]) <= 2) load[k] += WiFi.RSSI(i) > -70 ? 3 : 1;
+    int best = 1; for (int k = 0; k < 3; k++) if (load[k] < load[best]) best = k;
+    apChannel = chs[best];
+    Serial.printf("Funktest: Belegung Kanal 1/6/11 = %d/%d/%d -> Direktverbindung auf Kanal %d\n", load[0], load[1], load[2], apChannel);
+  }
   WiFi.scanDelete();
   if (cfg.wifiMode == 1 && strlen(cfg.ssid)) { WiFi.setAutoReconnect(true); staBegin(); }
   else startAP();   // Direktverbindung: ESP32 öffnet sein eigenes WLAN
@@ -452,7 +461,19 @@ void startWiFi() {
 
 void handleWiFi() {
   uint32_t now = millis();
-  if (cfg.wifiMode == 0 || !strlen(cfg.ssid)) { if (!apActive) startAP(); return; }
+  if (cfg.wifiMode == 0 || !strlen(cfg.ssid)) {
+    if (!apActive) startAP();
+    // Selbstüberwachung: läuft das eigene WLAN wirklich? Sonst neu starten
+    static uint32_t lastChk = 0;
+    if (now - lastChk > 15000) {
+      lastChk = now;
+      if (!(WiFi.getMode() & WIFI_MODE_AP) || WiFi.softAPIP() == IPAddress(0, 0, 0, 0)) {
+        Serial.println("Direktverbindung war aus -> starte neu");
+        apActive = false; startAP();
+      }
+    }
+    return;
+  }
   if (WiFi.status() == WL_CONNECTED) {
     staLostSince = 0;
     if (!staOkSince) { staOkSince = now; Serial.printf("WLAN verbunden: %s  IP %s\n", cfg.ssid, WiFi.localIP().toString().c_str()); }
